@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"/Users/ilyalukashev/code test/mic-checker\" && git add . && git diff --cached --quiet || (git commit -m \"Auto-deploy: $(date '+%Y-%m-%d %H:%M')\" && git push origin main)",
+            "statusMessage": "Pushing to GitHub..."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 
 interface ImageItem {
   id: string;
@@ -26,6 +26,85 @@ async function fileToBase64(file: File): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+function ImageThumb({
+  img,
+  onRemove,
+}: {
+  img: ImageItem;
+  onRemove: () => void;
+}) {
+  const [searching, setSearching] = useState(false);
+
+  const handleGoogleSearch = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSearching(true);
+    try {
+      const res = await fetch("/api/reverse-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: img.data, mediaType: img.mediaType }),
+      });
+      const { url } = await res.json();
+      if (url) window.open(url, "_blank");
+    } catch {
+      // fallback — open Google Images manually
+      window.open("https://images.google.com", "_blank");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  return (
+    <div
+      className="relative group aspect-square rounded-lg overflow-hidden"
+      style={{ backgroundColor: "#0d0d0d" }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={img.preview} alt={img.file.name} className="w-full h-full object-cover" />
+
+      {/* Overlay on hover */}
+      <div
+        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5"
+        style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+      >
+        {/* Google reverse search button */}
+        <button
+          onClick={handleGoogleSearch}
+          disabled={searching}
+          title="Search on Google Images"
+          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50"
+          style={{ backgroundColor: "#C9A96E", color: "#000" }}
+        >
+          {searching ? (
+            <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          ) : (
+            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12c0-4.1 3.2-7.27 7.2-7.27 3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.1 2C6.42 2 2.03 6.8 2.03 12c0 5.05 4.13 10 10.22 10 5.35 0 9.25-3.67 9.25-9.09 0-1.15-.15-1.81-.15-1.81z" />
+            </svg>
+          )}
+          {searching ? "Searching…" : "Google"}
+        </button>
+
+        {/* Remove button */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          title="Remove"
+          className="flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors"
+          style={{ backgroundColor: "rgba(255,255,255,0.1)", color: "#aaa" }}
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Remove
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function ImageUploader({ images, onImagesAdded, onRemoveImage }: Props) {
@@ -69,13 +148,13 @@ export default function ImageUploader({ images, onImagesAdded, onRemoveImage }: 
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
         onClick={() => inputRef.current?.click()}
-        className="rounded-xl p-10 text-center cursor-pointer transition-all group"
+        className="rounded-xl p-10 text-center cursor-pointer transition-all"
         style={{ border: "1px dashed #222" }}
         onMouseEnter={e => (e.currentTarget.style.borderColor = "#444")}
         onMouseLeave={e => (e.currentTarget.style.borderColor = "#222")}
       >
         <svg
-          className="w-7 h-7 mx-auto mb-3 transition-colors"
+          className="w-7 h-7 mx-auto mb-3"
           style={{ color: "#333" }}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
@@ -97,38 +176,31 @@ export default function ImageUploader({ images, onImagesAdded, onRemoveImage }: 
       </div>
 
       {images.length > 0 && (
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          {images.map((img) => (
+        <>
+          <p className="text-xs mt-3 mb-2 text-center" style={{ color: "#444" }}>
+            Hover over a photo to search on Google Images
+          </p>
+          <div className="grid grid-cols-4 gap-2">
+            {images.map((img) => (
+              <ImageThumb
+                key={img.id}
+                img={img}
+                onRemove={() => onRemoveImage(img.id)}
+              />
+            ))}
             <div
-              key={img.id}
-              className="relative group aspect-square rounded-lg overflow-hidden"
-              style={{ backgroundColor: "#0d0d0d" }}
+              onClick={() => inputRef.current?.click()}
+              className="aspect-square rounded-lg flex items-center justify-center cursor-pointer transition-all"
+              style={{ border: "1px dashed #222" }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = "#444")}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = "#222")}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.preview} alt={img.file.name} className="w-full h-full object-cover" />
-              <button
-                onClick={(e) => { e.stopPropagation(); onRemoveImage(img.id); }}
-                className="absolute top-1 right-1 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
-              >
-                <svg className="w-3 h-3" style={{ color: "#aaa" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <svg className="w-5 h-5" style={{ color: "#333" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+              </svg>
             </div>
-          ))}
-          <div
-            onClick={() => inputRef.current?.click()}
-            className="aspect-square rounded-lg flex items-center justify-center cursor-pointer transition-all"
-            style={{ border: "1px dashed #222" }}
-            onMouseEnter={e => (e.currentTarget.style.borderColor = "#444")}
-            onMouseLeave={e => (e.currentTarget.style.borderColor = "#222")}
-          >
-            <svg className="w-5 h-5" style={{ color: "#333" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-            </svg>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
