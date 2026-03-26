@@ -33,6 +33,7 @@ Key authenticity markers you examine:
 - Genuine boards have Neumann part numbers or date codes silkscreened on the board
 - Capacitors and resistors should be properly rated (63V or higher for audio caps)
 - Fake boards often use generic jellybean components, cheap electrolytic caps, and poor layout
+- ABSENCE OF MARKINGS — CRITICAL: If a PCB has no silk-screen markings at all (no part numbers, no model codes, no date codes, no reference designators), this is a definitive indicator of a FAKE or DIY build. Genuine Neumann boards always have proper silk-screened labeling.
 
 **PCB Fake Indicator — CRITICAL (expert-verified)**:
 - FOUR BLUE TOROIDAL INDUCTORS (chokes) in the center of the PCB are a confirmed sign of a fake U87. Genuine U87 boards do not have this arrangement of blue toroidal components in the middle of the board.
