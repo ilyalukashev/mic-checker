@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -23,6 +25,14 @@ Key authenticity markers you examine:
 - Badge placement: On front of body
 - Serial number: Stamped on rear
 - Body: Clean, smooth finish; proper proportions
+- TRANSFORMERLESS design — genuine TLM103 has NO transformer on the PCB by design. If a transformer is visible on the PCB, it is a fake.
+- Screws securing the headgrille mesh to body are flush with the body on genuine units. Fakes typically have recessed screws due to poor manufacturing tolerances.
+- Mic stand adapter/thread collar: genuine is METAL. Fake units use plastic adapters.
+- Body label/sticker: genuine has a perfectly applied thin label — no bubbling, no lifting, flawless German craftsmanship. Fakes may show bubbling or uneven application under the label.
+- Wooden box (if included): genuine Neumann packaging has DOVETAIL JOINTS on the wooden case and the Neumann logo is CARVED into the lid. Fakes have stickered logos and cheaply assembled boxes without dovetail joinery.
+- Internal glue: genuine units have no visible glue globs. Fakes often have visible globs of adhesive on internal components, sometimes visible through the mesh grille.
+- PCB markings: genuine TLM103 boards have Neumann printed/silkscreened on the circuit board. Fakes may or may not have markings.
+- NOTE: Fakes are becoming increasingly sophisticated — when in doubt, recommend professional verification.
 
 **PCB / Amplifier Board (Genuine)**:
 - Genuine U87/TLM103 PCBs use high-quality FR4 board with clean silk-screening
@@ -96,6 +106,44 @@ export interface AnalysisResult {
   recommendations: string[];
 }
 
+// Reference images with captions — loaded once at module level
+const REFERENCES: { file: string; mediaType: "image/jpeg" | "image/png"; caption: string }[] = [
+  {
+    file: "pcb-overview.jpg",
+    mediaType: "image/jpeg",
+    caption: "REFERENCE 1 — PCB overview side by side. LEFT = FAKE U87 PCB. RIGHT = GENUINE U87 PCB. Note the overall component layout and quality differences.",
+  },
+  {
+    file: "pcb-transformer-detail.jpg",
+    mediaType: "image/jpeg",
+    caption: "REFERENCE 2 — Transformer close-up. LEFT = GENUINE: small flat transformer labeled 'CIRCUIT DIAGRAM' (circled). RIGHT = FAKE: large bulky YELLOW TRANSFORMER (circled). A large yellow transformer is a definitive fake indicator.",
+  },
+  {
+    file: "genuine-flat-screws.jpg",
+    mediaType: "image/jpeg",
+    caption: "REFERENCE 3 — Screws. GENUINE U87 uses FLAT HEAD (slotted) screws visible on the connector area. Phillips/cross-head screws = fake.",
+  },
+  {
+    file: "capsule-ring.png",
+    mediaType: "image/png",
+    caption: "REFERENCE 4 — Capsule mount ring viewed from above. LEFT = FAKE: yellowish/cream plastic with visible gold contact pins around the ring. RIGHT = GENUINE: clean white/gray plastic, precise machined appearance, no visible pins.",
+  },
+  {
+    file: "xlr-connector.png",
+    mediaType: "image/png",
+    caption: "REFERENCE 5 — XLR connector finish. LEFT = FAKE: bright chrome mirror finish. RIGHT = GENUINE: matte nickel finish, warmer gray tone. Chrome = fake, Nickel = genuine.",
+  },
+];
+
+function loadReferenceImages() {
+  const refDir = path.join(process.cwd(), "public", "references");
+  return REFERENCES.map((ref) => {
+    const filePath = path.join(refDir, ref.file);
+    const data = fs.readFileSync(filePath).toString("base64");
+    return { ...ref, data };
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -105,10 +153,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No images provided" }, { status: 400 });
     }
 
-    const imageContent: Anthropic.ImageBlockParam[] = images.map((img) => ({
-      type: "image",
+    // Load reference images
+    const refs = loadReferenceImages();
+
+    // Build reference block: caption + image interleaved
+    const referenceContent: Anthropic.ContentBlockParam[] = [
+      {
+        type: "text",
+        text: "The following are EXPERT REFERENCE IMAGES from a professional teardown of genuine vs fake Neumann U87Ai microphones. Treat these as visual ground truth when analyzing the user's photos below.",
+      },
+      ...refs.flatMap((ref) => [
+        { type: "text" as const, text: ref.caption },
+        {
+          type: "image" as const,
+          source: { type: "base64" as const, media_type: ref.mediaType, data: ref.data },
+        },
+      ]),
+      {
+        type: "text",
+        text: `— END OF REFERENCE IMAGES —\n\nNow analyze the following ${images.length > 1 ? `${images.length} user-submitted images` : "user-submitted image"} and determine authenticity. Respond with the JSON object as specified.`,
+      },
+    ];
+
+    // User's uploaded images
+    const userContent: Anthropic.ContentBlockParam[] = images.map((img) => ({
+      type: "image" as const,
       source: {
-        type: "base64",
+        type: "base64" as const,
         media_type: img.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
         data: img.data,
       },
@@ -121,13 +192,7 @@ export async function POST(req: NextRequest) {
       messages: [
         {
           role: "user",
-          content: [
-            ...imageContent,
-            {
-              type: "text",
-              text: `Please analyze ${images.length > 1 ? "these images" : "this image"} of a microphone and determine if it is a genuine Neumann U87 or TLM103, or a fake/clone. Respond with the JSON object as specified.`,
-            },
-          ],
+          content: [...referenceContent, ...userContent],
         },
       ],
     });
