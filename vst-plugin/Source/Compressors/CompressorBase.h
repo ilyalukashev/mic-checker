@@ -13,12 +13,25 @@ public:
     virtual juce::String getName()   const = 0;
     virtual juce::Colour getColour() const = 0;
 
-    void  setBlend(float b)       { blend = juce::jlimit(0.0f, 1.0f, b); }
-    float getBlend()        const  { return blend; }
-    void  setEnabled(bool e)       { enabled = e; }
-    bool  isEnabled()       const  { return enabled; }
-    void  setInputTrim(float dB)   { inputTrimLin = dBToLinear(dB); }
-    float getCurrentGR()    const  { return currentGR_dB; }
+    // User trim (additive on top of calibration offset)
+    void setUserTrim(float dB)        { userTrimDB = dB;  updateInputGain(); }
+    // Called by auto-calibration; not exposed to user
+    void setCalibTrim(float dB)       { calibTrimDB = dB; updateInputGain(); }
+
+    void setEnabled(bool e)           { enabled = e; }
+    bool isEnabled()       const      { return enabled; }
+
+    void  setBlend(float b)           { blend = juce::jlimit(0.0f, 1.0f, b); }
+    float getBlend()       const      { return blend; }
+
+    void  setAttackMult(float m)      { attackMult  = std::max(0.01f, m); }
+    void  setReleaseMult(float m)     { releaseMult = std::max(0.01f, m); }
+
+    float getCurrentGR()   const      { return currentGR_dB; }
+    float getCalibTrim()   const      { return calibTrimDB; }
+
+    static float dBToLinear(float dB) { return std::pow(10.0f, dB * 0.05f); }
+    static float linearTodB(float l)  { return l > 1e-7f ? 20.0f * std::log10(l) : -140.0f; }
 
 protected:
     double sampleRate   = 44100.0;
@@ -26,9 +39,9 @@ protected:
     bool   enabled      = true;
     float  inputTrimLin = 1.0f;
     float  currentGR_dB = 0.0f;
+    float  attackMult   = 1.0f;
+    float  releaseMult  = 1.0f;
 
-    static float dBToLinear(float dB)      { return std::pow(10.0f, dB * 0.05f); }
-    static float linearTodB(float lin)     { return lin > 1e-7f ? 20.0f * std::log10(lin) : -140.0f; }
     static float timeToCoeff(float ms, double sr)
     {
         if (ms <= 0.0f) return 0.0f;
@@ -36,7 +49,8 @@ protected:
     }
 
     // Returns gain change in dB (always <= 0)
-    static float gainComputeDB(float inputDB, float threshDB, float ratioRecip, float kneeDB)
+    static float gainComputeDB(float inputDB, float threshDB,
+                                float ratioRecip, float kneeDB)
     {
         float diff = inputDB - threshDB;
         if (kneeDB > 0.0f)
@@ -58,4 +72,10 @@ protected:
     {
         return std::tanh(x * drive) / std::tanh(drive + 1e-6f);
     }
+
+private:
+    float userTrimDB  = 0.0f;
+    float calibTrimDB = 0.0f;
+
+    void updateInputGain() { inputTrimLin = dBToLinear(userTrimDB + calibTrimDB); }
 };
