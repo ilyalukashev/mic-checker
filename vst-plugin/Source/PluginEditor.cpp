@@ -186,8 +186,6 @@ MultiColorEditor::MultiColorEditor(MultiColorAudioProcessor& p)
       postHPF(p.apvts, "post_hpf_freq", "post_hpf_on", "POST HPF"),
       postLPF(p.apvts, "post_lpf_freq", "post_lpf_on", "POST LPF")
 {
-    setSize(1120, 460);
-
     for (int i = 0; i < kNumCompressors; ++i)
     {
         strips[i] = std::make_unique<CompressorStrip>(proc, i);
@@ -221,6 +219,9 @@ MultiColorEditor::MultiColorEditor(MultiColorAudioProcessor& p)
 
     outGainAttach = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         p.apvts, "output_gain", outGainSlider);
+
+    // setSize must come LAST — it triggers resized() immediately
+    setSize(1120, 460);
 }
 
 void MultiColorEditor::paint(juce::Graphics& g)
